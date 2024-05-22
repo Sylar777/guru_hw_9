@@ -9,23 +9,11 @@ public class InnerDataModel {
         return type;
     }
 
-    public void setType(String type) {
-        this.type = type;
-    }
-
     public int getAge() {
         return age;
     }
 
-    public void setAge(int age) {
-        this.age = age;
-    }
-
     public int getCountOfStars() {
         return countOfStars;
-    }
-
-    public void setCountOfStars(int countOfStars) {
-        this.countOfStars = countOfStars;
     }
 }

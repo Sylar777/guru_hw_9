@@ -8,15 +8,7 @@ public class JsonModel {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public InnerDataModel getInnerData() {
         return innerData;
-    }
-
-    public void setInnerData(InnerDataModel innerData) {
-        this.innerData = innerData;
     }
 }

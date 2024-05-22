@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvException;
 import model.JsonModel;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.*;
@@ -14,22 +13,43 @@ import java.util.Objects;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 public class FileReaderTest {
     private final ClassLoader cl = FileReaderTest.class.getClassLoader();
 
     @Test
-    void zipFileParsingTest() {
+    void readCSVFile() {
+        zipFileParsingAndReadTheFile(".csv");
+    }
+
+    @Test
+    void readXLSFile() {
+        zipFileParsingAndReadTheFile(".xls");
+    }
+
+    @Test
+    void readPDFFile() {
+        zipFileParsingAndReadTheFile(".pdf");
+    }
+
+    @Test
+    void readJSONFile() {
+        zipFileParsingAndReadTheFile(".json");
+    }
+
+    public void zipFileParsingAndReadTheFile(String fileExtension) {
         try (ZipInputStream zis = new ZipInputStream(
                 Objects.requireNonNull(cl.getResourceAsStream("archive.zip"))
         )) {
             ZipEntry entry;
 
+            System.out.println("Reading file: " + fileExtension);
+
             while ((entry = zis.getNextEntry()) != null) {
                 if (entry.getName().startsWith("__MACOSX")) {
                     continue;
                 }
-
-                System.out.println("Reading file: " + entry.getName());
 
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 byte[] buffer = new byte[1024];
@@ -39,24 +59,37 @@ public class FileReaderTest {
                 }
                 byte[] entryData = baos.toByteArray();
 
-                if (entry.getName().endsWith(".csv")) {
-                    try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                        readContentFromCsv(bais);
+                switch (fileExtension) {
+                    case ".csv" -> {
+                        if (entry.getName().endsWith(".csv")) {
+                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
+                                readContentFromCsv(bais);
+                            }
+                        }
                     }
-                } else if (entry.getName().endsWith(".xlsx")) {
-                    try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                        readContentFromXls(bais);
+                    case ".xls" -> {
+                        if (entry.getName().endsWith(".xls")) {
+                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
+                                readContentFromXls(bais);
+                            }
+                        }
                     }
-                } else if (entry.getName().endsWith(".pdf")) {
-                    try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                        readContentFromPdf(bais);
+                    case ".pdf" -> {
+                        if (entry.getName().endsWith(".pdf")) {
+                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
+                                readContentFromPdf(bais);
+                            }
+                        }
                     }
-                } else if (entry.getName().endsWith(".json")) {
-                    try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                        readContentFromJsonByJackson(bais);
-                    }
-                    try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                        readContentFromJsonByJacksonWithModel(bais);
+                    case ".json" -> {
+                        if (entry.getName().endsWith(".json")) {
+                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
+                                readContentFromJsonByJackson(bais);
+                            }
+                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
+                                readContentFromJsonByJacksonWithModel(bais);
+                            }
+                        }
                     }
                 }
             }
@@ -69,34 +102,34 @@ public class FileReaderTest {
         CSVReader reader = new CSVReader(new InputStreamReader(inputStream));
 
         List<String[]> allRows = reader.readAll();
-        Assertions.assertEquals(allRows.get(2)[6],"8754324321");
+        assertThat(allRows.get(2)[6]).isEqualTo("8754324321");
     }
 
     private static void readContentFromXls(InputStream inputStream) throws IOException {
         BufferedInputStream reader = new BufferedInputStream(inputStream);
         XLS xls = new XLS(reader);
         var firstData = xls.excel.getSheetAt(0).getRow(0).getCell(0).getNumericCellValue();
-        Assertions.assertEquals(1465000.0, firstData);
+        assertThat(firstData).isEqualTo(1465000.0);
     }
 
     private static void readContentFromPdf(InputStream inputStream) throws IOException {
         PDF pdf = new PDF(inputStream);
-        Assertions.assertEquals(pdf.numberOfPages, 2);
+        assertThat(pdf.numberOfPages).isEqualTo(2);
     }
 
     private static void readContentFromJsonByJackson(InputStream inputStream) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
 
         JsonNode jsonNode = objectMapper.readTree(inputStream);
-        Assertions.assertEquals("Andromeda", jsonNode.get("name").asText());
-        Assertions.assertEquals(100000, jsonNode.get("innerData").get("age").asInt());
+        assertThat(jsonNode.get("name").asText()).isEqualTo("Andromeda");
+        assertThat(jsonNode.get("innerData").get("age").asInt()).isEqualTo(100000);
     }
 
     private static void readContentFromJsonByJacksonWithModel(InputStream inputStream) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
 
         JsonModel jsonModel = objectMapper.readValue(inputStream, JsonModel.class);
-        Assertions.assertEquals("Andromeda", jsonModel.getName());
-        Assertions.assertEquals("Galaxy", jsonModel.getInnerData().getType());
+        assertThat(jsonModel.getName()).isEqualTo("Andromeda");
+        assertThat(jsonModel.getInnerData().getType()).isEqualTo("Galaxy");
     }
 }
