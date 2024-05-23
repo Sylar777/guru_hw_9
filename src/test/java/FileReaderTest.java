@@ -16,29 +16,61 @@ import java.util.zip.ZipInputStream;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 public class FileReaderTest {
-    private final ClassLoader cl = FileReaderTest.class.getClassLoader();
+    private static final ClassLoader cl = FileReaderTest.class.getClassLoader();
 
     @Test
-    void readCSVFile() {
-        zipFileParsingAndReadTheFile(".csv");
+    void readCSVFile() throws IOException, CsvException {
+        var ByteArrayInputStream = zipFileParsing(".csv");
+        assert ByteArrayInputStream != null;
+
+        CSVReader reader = new CSVReader(new InputStreamReader(ByteArrayInputStream));
+        List<String[]> allRows = reader.readAll();
+        assertThat(allRows.get(2)[6]).isEqualTo("8754324321");
     }
 
     @Test
-    void readXLSFile() {
-        zipFileParsingAndReadTheFile(".xls");
+    void readXLSFile() throws IOException {
+        var ByteArrayInputStream = zipFileParsing(".xlsx");
+        assert ByteArrayInputStream != null;
+
+        BufferedInputStream reader = new BufferedInputStream(ByteArrayInputStream);
+        XLS xls = new XLS(reader);
+        var firstData = xls.excel.getSheetAt(0).getRow(0).getCell(0).getNumericCellValue();
+        assertThat(firstData).isEqualTo(1465000.0);
     }
 
     @Test
-    void readPDFFile() {
-        zipFileParsingAndReadTheFile(".pdf");
+    void readPDFFile() throws IOException {
+        var ByteArrayInputStream = zipFileParsing(".pdf");
+        assert ByteArrayInputStream != null;
+
+        PDF pdf = new PDF(ByteArrayInputStream);
+        assertThat(pdf.numberOfPages).isEqualTo(2);
     }
 
     @Test
-    void readJSONFile() {
-        zipFileParsingAndReadTheFile(".json");
+    void readJSONFileByJackson() throws IOException {
+        var ByteArrayInputStream = zipFileParsing(".json");
+        assert ByteArrayInputStream != null;
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode jsonNode = objectMapper.readTree(ByteArrayInputStream);
+        assertThat(jsonNode.get("name").asText()).isEqualTo("Andromeda");
+        assertThat(jsonNode.get("innerData").get("age").asInt()).isEqualTo(100000);
     }
 
-    public void zipFileParsingAndReadTheFile(String fileExtension) {
+    @Test
+    void readJSONFileByJacksonWithModel() throws IOException {
+        var ByteArrayInputStream = zipFileParsing(".json");
+        assert ByteArrayInputStream != null;
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonModel jsonModel = objectMapper.readValue(ByteArrayInputStream, JsonModel.class);
+        assertThat(jsonModel.getName()).isEqualTo("Andromeda");
+        assertThat(jsonModel.getInnerData().getType()).isEqualTo("Galaxy");
+    }
+
+    public static ByteArrayInputStream zipFileParsing(String fileExtension) {
         try (ZipInputStream zis = new ZipInputStream(
                 Objects.requireNonNull(cl.getResourceAsStream("archive.zip"))
         )) {
@@ -47,89 +79,22 @@ public class FileReaderTest {
             System.out.println("Reading file: " + fileExtension);
 
             while ((entry = zis.getNextEntry()) != null) {
-                if (entry.getName().startsWith("__MACOSX")) {
-                    continue;
-                }
-
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                byte[] buffer = new byte[1024];
-                int len;
-                while ((len = zis.read(buffer)) > -1) {
-                    baos.write(buffer, 0, len);
-                }
-                byte[] entryData = baos.toByteArray();
-
-                switch (fileExtension) {
-                    case ".csv" -> {
-                        if (entry.getName().endsWith(".csv")) {
-                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                                readContentFromCsv(bais);
-                            }
-                        }
+                if (entry.getName().endsWith(fileExtension)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[1024];
+                    int len;
+                    while ((len = zis.read(buffer)) > -1) {
+                        baos.write(buffer, 0, len);
                     }
-                    case ".xls" -> {
-                        if (entry.getName().endsWith(".xls")) {
-                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                                readContentFromXls(bais);
-                            }
-                        }
-                    }
-                    case ".pdf" -> {
-                        if (entry.getName().endsWith(".pdf")) {
-                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                                readContentFromPdf(bais);
-                            }
-                        }
-                    }
-                    case ".json" -> {
-                        if (entry.getName().endsWith(".json")) {
-                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                                readContentFromJsonByJackson(bais);
-                            }
-                            try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
-                                readContentFromJsonByJacksonWithModel(bais);
-                            }
-                        }
+                    byte[] entryData = baos.toByteArray();
+                    try (ByteArrayInputStream bais = new ByteArrayInputStream(entryData)) {
+                        return bais;
                     }
                 }
             }
-        } catch (IOException | CsvException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    private static void readContentFromCsv(InputStream inputStream) throws IOException, CsvException {
-        CSVReader reader = new CSVReader(new InputStreamReader(inputStream));
-
-        List<String[]> allRows = reader.readAll();
-        assertThat(allRows.get(2)[6]).isEqualTo("8754324321");
-    }
-
-    private static void readContentFromXls(InputStream inputStream) throws IOException {
-        BufferedInputStream reader = new BufferedInputStream(inputStream);
-        XLS xls = new XLS(reader);
-        var firstData = xls.excel.getSheetAt(0).getRow(0).getCell(0).getNumericCellValue();
-        assertThat(firstData).isEqualTo(1465000.0);
-    }
-
-    private static void readContentFromPdf(InputStream inputStream) throws IOException {
-        PDF pdf = new PDF(inputStream);
-        assertThat(pdf.numberOfPages).isEqualTo(2);
-    }
-
-    private static void readContentFromJsonByJackson(InputStream inputStream) throws IOException {
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        JsonNode jsonNode = objectMapper.readTree(inputStream);
-        assertThat(jsonNode.get("name").asText()).isEqualTo("Andromeda");
-        assertThat(jsonNode.get("innerData").get("age").asInt()).isEqualTo(100000);
-    }
-
-    private static void readContentFromJsonByJacksonWithModel(InputStream inputStream) throws IOException {
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        JsonModel jsonModel = objectMapper.readValue(inputStream, JsonModel.class);
-        assertThat(jsonModel.getName()).isEqualTo("Andromeda");
-        assertThat(jsonModel.getInnerData().getType()).isEqualTo("Galaxy");
+        return null;
     }
 }
